@@ -1,0 +1,123 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Cachorro 3D — Modelo animado</title>
+<style>
+*{box-sizing:border-box}body{margin:0;background:#111;color:#f4f4f4;font:15px system-ui,sans-serif;display:flex;flex-direction:column;align-items:center;min-height:100vh;padding:14px}
+h1{font-size:17px;font-weight:650;margin:5px 0 10px;letter-spacing:.2px}
+#stage{width:min(100%,420px);aspect-ratio:9/16;position:relative;background:#171c25;border-radius:14px;overflow:hidden;box-shadow:0 14px 50px #0008}
+canvas{display:block;width:100%;height:100%;touch-action:none}
+#hint{position:absolute;bottom:14px;left:0;right:0;text-align:center;color:#ffffffa8;font-size:11px;pointer-events:none}
+.controls{width:min(100%,420px);display:flex;gap:8px;justify-content:center;flex-wrap:wrap;margin-top:12px}
+button{background:#252b35;color:#fff;border:1px solid #505866;border-radius:9px;padding:10px 15px;font:inherit}
+button:active{transform:scale(.97)}#status{width:min(100%,420px);text-align:center;color:#aaa;font-size:12px;margin-top:9px}
+</style>
+</head>
+<body>
+<h1>CACHORRO 3D · MODELO ANIMADO</h1>
+<div id="stage"><canvas id="view"></canvas><div id="hint">Arraste para girar · Pinça ou role para aproximar</div></div>
+<div class="controls"><button id="play">⏸ Pausar movimento</button><button id="spin">⟳ Girar modelo</button><button id="reset">↺ Reiniciar câmera</button></div>
+<div id="status">Modelo 3D interativo · iluminação e sombras em tempo real</div>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script>
+(()=>{
+const canvas=document.querySelector('#view'),stage=document.querySelector('#stage');
+const renderer=new THREE.WebGLRenderer({canvas,antialias:true,alpha:false});
+renderer.setPixelRatio(Math.min(devicePixelRatio,2));renderer.setSize(stage.clientWidth,stage.clientHeight,false);
+renderer.shadowMap.enabled=true;renderer.shadowMap.type=THREE.PCFSoftShadowMap;
+renderer.outputEncoding=THREE.sRGBEncoding;renderer.toneMapping=THREE.ACESFilmicToneMapping;renderer.toneMappingExposure=1.15;
+const scene=new THREE.Scene();scene.background=new THREE.Color('#a9c5d7');scene.fog=new THREE.Fog('#a9c5d7',13,28);
+const camera=new THREE.PerspectiveCamera(34,stage.clientWidth/stage.clientHeight,.1,80);
+camera.position.set(5.2,3.4,8.5);camera.lookAt(0,1.45,0);
+scene.add(new THREE.HemisphereLight(0xe8f4ff,0x70513a,1.35));
+const key=new THREE.DirectionalLight(0xffe2bd,3.1);key.position.set(-4,8,5);key.castShadow=true;key.shadow.mapSize.set(2048,2048);key.shadow.camera.left=-6;key.shadow.camera.right=6;key.shadow.camera.top=8;key.shadow.camera.bottom=-5;key.shadow.bias=-.00025;scene.add(key);
+const fill=new THREE.DirectionalLight(0x9ccfff,1.3);fill.position.set(5,3,-5);scene.add(fill);
+const rim=new THREE.DirectionalLight(0xffd6a0,1.4);rim.position.set(0,5,-6);scene.add(rim);
+const mat=(color,rough=.82,metal=0)=>new THREE.MeshStandardMaterial({color,roughness:rough,metalness:metal});
+const fur=mat('#b97835'),furLight=mat('#d99a51'),furCream=mat('#f1d6a7'),furDark=mat('#74421f'),black=mat('#171514',.28),eye=mat('#24150f',.18),shine=new THREE.MeshBasicMaterial({color:'#fff8e9'}),innerEar=mat('#593025'),mouthMat=mat('#2a1712'),pawPad=mat('#4b2922');
+const dog=new THREE.Group();scene.add(dog);
+function ball(parent,m,pos,scale,seg=28){const o=new THREE.Mesh(new THREE.SphereGeometry(1,seg,Math.max(12,Math.floor(seg*.7))),m);o.position.set(...pos);o.scale.set(...scale);o.castShadow=true;o.receiveShadow=true;parent.add(o);return o}
+function capsule(parent,m,a,b,r1,r2=r1){const A=new THREE.Vector3(...a),B=new THREE.Vector3(...b),d=B.clone().sub(A);const o=new THREE.Mesh(new THREE.CylinderGeometry(r2,r1,d.length(),18,1),m);o.position.copy(A.add(B).multiplyScalar(.5));o.quaternion.setFromUnitVectors(new THREE.Vector3(0,1,0),d.normalize());o.castShadow=true;o.receiveShadow=true;parent.add(o);return o}
+function curve(parent,points,r,material){const c=new THREE.CatmullRomCurve3(points.map(p=>new THREE.Vector3(...p)));const o=new THREE.Mesh(new THREE.TubeGeometry(c,32,r,8,false),material);o.castShadow=true;parent.add(o);return o}
+// Torso: compact, friendly puppy proportions
+const torso=new THREE.Group();dog.add(torso);
+ball(torso,fur,[0,1.18,0],[.63,.67,1.02],36);
+ball(torso,furLight,[0,1.43,.58],[.48,.43,.52],32);
+ball(torso,furCream,[0,1.12,.83],[.37,.43,.23],28);
+// Neck and head
+ball(torso,fur,[0,1.77,.72],[.47,.57,.48],32);
+const head=new THREE.Group();head.position.set(0,2.15,.98);torso.add(head);
+ball(head,fur,[0,0,0],[.62,.62,.55],40);
+ball(head,furLight,[0,-.23,.35],[.48,.36,.34],32);
+// cheek fluff
+ball(head,furLight,[-.37,-.23,.19],[.25,.27,.25],24);ball(head,furLight,[.37,-.23,.19],[.25,.27,.25],24);
+// muzzle and lower jaw
+ball(head,furCream,[0,-.31,.62],[.34,.23,.32],32);
+ball(head,mouthMat,[0,-.45,.56],[.22,.11,.23],24);
+ball(head,furLight,[0,-.22,.71],[.29,.2,.24],28);
+ball(head,black,[0,-.10,.89],[.17,.125,.15],28);
+ball(head,shine,[-.055,-.055,1.005],[.045,.035,.025],12);
+// eyes, eyelids, catchlights and brows
+for(const s of [-1,1]){
+ ball(head,furDark,[s*.34,.09,.36],[.19,.23,.13],24);
+ ball(head,eye,[s*.265,.105,.468],[.105,.125,.065],24);
+ ball(head,shine,[s*.29,.15,.522],[.033,.04,.018],12);
+ ball(head,furDark,[s*.27,.29,.43],[.18,.055,.08],20);
+ // floppy ears: outer and inset, angled outward
+ const ear=new THREE.Group();ear.position.set(s*.48,.34,-.02);ear.rotation.z=s*.23;ear.rotation.x=-.12;head.add(ear);
+ ball(ear,furDark,[s*.11,-.34,-.015],[.22,.48,.19],28);
+ ball(ear,fur,[s*.11,-.31,.055],[.18,.41,.15],28);
+ ball(ear,innerEar,[s*.11,-.34,.18],[.105,.29,.035],20);
+}
+// smile lines
+curve(head,[[-.2,-.4,.77],[-.12,-.49,.79],[0,-.51,.79],[.12,-.49,.79],[.2,-.4,.77]],.018,mouthMat);
+// legs with animated upper joints
+const legs=[];
+for(const s of [-1,1])for(const z of [-.62,.67]){
+ const leg=new THREE.Group();leg.position.set(s*.39,1.0,z);torso.add(leg);
+ ball(leg,fur,[0,-.16,0],[.22,.38,.23],24);
+ capsule(leg,furLight,[0,-.25,0],[0,-.66,.035],.14,.12);
+ ball(leg,furLight,[0,-.7,.12],[.2,.14,.27],24);
+ // toes
+ for(const t of [-1,0,1])ball(leg,furCream,[t*.095,-.735,.29],[.065,.07,.09],16);
+ legs.push({group:leg,front:z>0,side:s});
+}
+// Tail with articulated curved silhouette
+const tail=new THREE.Group();tail.position.set(0,1.48,-.87);torso.add(tail);
+capsule(tail,fur,[0,0,0],[0,.16,-.28],.17,.15);
+const tailMid=new THREE.Group();tailMid.position.set(0,.16,-.28);tail.add(tailMid);
+capsule(tailMid,furLight,[0,0,0],[0,.23,-.36],.15,.115);
+const tailTip=new THREE.Group();tailTip.position.set(0,.23,-.36);tailMid.add(tailTip);
+ball(tailTip,furCream,[0,.08,-.13],[.12,.17,.2],20);
+// tiny fur tufts along cheeks, chest and top
+for(let i=0;i<7;i++){const a=(i/6-.5)*1.2;ball(head,furLight,[Math.sin(a)*.47,-.27+Math.cos(a)*.08,.17],[.09,.12,.1],14)}
+for(let i=0;i<5;i++)ball(torso,furCream,[(i-2)*.13,.95,.91],[.075,.14,.09],14);
+// Floor and soft studio set
+const floor=new THREE.Mesh(new THREE.CircleGeometry(8,80),mat('#8195a0'));floor.rotation.x=-Math.PI/2;floor.position.y=-.03;floor.receiveShadow=true;scene.add(floor);
+const disk=new THREE.Mesh(new THREE.CircleGeometry(2.15,64),mat('#aab8bd'));disk.rotation.x=-Math.PI/2;disk.position.y=-.018;disk.receiveShadow=true;scene.add(disk);
+// subtle floating dust/bokeh
+const particles=new THREE.Group();scene.add(particles);
+for(let i=0;i<38;i++){const p=new THREE.Mesh(new THREE.SphereGeometry(.018+Math.random()*.025,8,8),new THREE.MeshBasicMaterial({color:'#fff',transparent:true,opacity:.28}));p.position.set((Math.random()-.5)*9,Math.random()*6+.2,(Math.random()-.5)*7-1);particles.add(p)}
+// Pointer orbit controls without external dependency
+let yaw=.55,pitch=.16,dist=10.2,drag=false,px=0,py=0,auto=true,playing=true;
+function updateCamera(){pitch=Math.max(-.05,Math.min(.75,pitch));dist=Math.max(6.5,Math.min(15,dist));camera.position.set(Math.sin(yaw)*dist,2.1+Math.sin(pitch)*dist*.55,Math.cos(yaw)*dist);camera.lookAt(0,1.55,0)}
+stage.addEventListener('pointerdown',e=>{drag=true;px=e.clientX;py=e.clientY;stage.setPointerCapture(e.pointerId)});
+stage.addEventListener('pointermove',e=>{if(!drag)return;yaw-=(e.clientX-px)*.008;pitch+=(e.clientY-py)*.006;px=e.clientX;py=e.clientY;auto=false;updateCamera()});
+stage.addEventListener('pointerup',()=>drag=false);stage.addEventListener('pointercancel',()=>drag=false);
+stage.addEventListener('wheel',e=>{e.preventDefault();dist+=e.deltaY*.008;updateCamera()},{passive:false});
+let start=performance.now();
+function animate(now){requestAnimationFrame(animate);const t=(now-start)/1000;const wave=playing?Math.sin(t*5):0;
+ if(auto)yaw=.55+Math.sin(t*.28)*.22;
+ if(playing){torso.position.y=.035*Math.sin(t*2.7);torso.scale.y=1+.008*Math.sin(t*2.7);head.rotation.y=.045*Math.sin(t*1.15);head.rotation.z=.018*Math.sin(t*1.8);tail.rotation.x=.2*Math.sin(t*8);tail.rotation.y=.38*Math.sin(t*7);tailMid.rotation.x=.22*Math.sin(t*8+.5);tailTip.rotation.x=.18*Math.sin(t*8+1);legs.forEach((l,i)=>{l.group.rotation.x=(l.front?1:-1)*.025*Math.sin(t*2.5+i);});}
+ particles.rotation.y=t*.025;updateCamera();renderer.render(scene,camera)}
+requestAnimationFrame(animate);
+document.querySelector('#play').onclick=()=>{playing=!playing;document.querySelector('#play').textContent=playing?'⏸ Pausar movimento':'▶ Retomar movimento'};
+document.querySelector('#spin').onclick=()=>{auto=!auto;document.querySelector('#spin').textContent=auto?'⟳ Girar modelo':'⟳ Giro automático desligado'};
+document.querySelector('#reset').onclick=()=>{yaw=.55;pitch=.16;dist=10.2;auto=true;updateCamera()};
+new ResizeObserver(()=>{const w=stage.clientWidth,h=stage.clientHeight;renderer.setSize(w,h,false);camera.aspect=w/h;camera.updateProjectionMatrix()}).observe(stage);
+updateCamera();
+})();
+</script>
+</body></html>
